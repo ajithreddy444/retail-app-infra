@@ -1,0 +1,67 @@
+Description: >
+
+    This template deploys a VPC, with a pair of public and private subnets
+    spread across two Availabilty Zones. It deploys an Internet Gateway, with a
+    default route on the public subnets. It deploys a pair of NAT Gateways
+    (one in each AZ), and default routes for them in the private subnets.
+
+    It then deploys a "hello world" application highly available ECS cluster
+    using Fargate containers.
+
+    Finally, it deploys an  ECS services from containers published in Amazon EC2
+    Container Registry (Amazon ECR).
+
+Parameters:
+    S3TemplateKeyPrefix:
+        Description: >
+            An S3 key prefix which will be used to resolve referenced templates
+        Type: String
+Resources:
+  
+    VPC:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub ${S3TemplateKeyPrefix}VPC.yml
+            Parameters:
+                EnvironmentName:    !Ref AWS::StackName
+                VpcCIDR:            10.0.0.0/16
+                PublicSubnet1CIDR:  10.0.10.0/24
+                PublicSubnet2CIDR:  10.0.11.0/24
+                PrivateSubnet1CIDR: 10.0.20.0/24
+                PrivateSubnet2CIDR: 10.0.21.0/24
+
+    EcsCluster:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub ${S3TemplateKeyPrefix}app.yml
+            Parameters:
+                PrivateSubnetId1: !GetAtt VPC.Outputs.PrivateSubnet1
+                PublicSubnetId1: !GetAtt VPC.Outputs.PublicSubnet1
+                PrivateSubnetId2: !GetAtt VPC.Outputs.PrivateSubnet2
+                PublicSubnetId2: !GetAtt VPC.Outputs.PublicSubnet2
+                EnvironmentName: !Ref AWS::StackName
+                VpcId: !GetAtt VPC.Outputs.VPC
+                DBSubnetGroupName: !GetAtt VPC.Outputs.DBSubnetGroup
+  
+
+    DeploymentPipeline:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: !Sub ${S3TemplateKeyPrefix}Code-pipeline.yml
+            Parameters:
+                EnvironmentName: !Ref AWS::StackName
+                ClusterName: !GetAtt EcsCluster.Outputs.EcsClusterName
+                ServiceArn: !GetAtt EcsCluster.Outputs.EcsServiceArn
+                ServiceArnUI: !GetAtt EcsCluster.Outputs.EcsServiceArnUI
+                SonarQubeURLName: 
+                  Fn::Sub: "http://${EcsCluster.Outputs.SonarQubePublicDNS}"
+                ApplicationURLForDASTScan: 
+                  Fn::Sub: "http://${EcsCluster.Outputs.LoadBalancerUrl}"
+                    
+
+        
+Outputs:
+
+    WebServiceUrl:
+        Description: The URL of the load balancer
+        Value: !Sub http://${EcsCluster.Outputs.LoadBalancerUrl}

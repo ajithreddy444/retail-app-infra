@@ -1,0 +1,1047 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation for deploying a sample application in ECS Fargate and enabling service to service communication using ECS Service connect.
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: nag
+  Ec2InstanceProfileName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: String
+    Default: SonarInstanceProfile
+  HostedZoneName:
+    Type: String
+    Description: The domain name for the hosted zone, e.g., example.com
+    Default: nagdevops.com
+  EnvironmentName:
+    Type: String
+    Description: The naming prefix for all resources.  
+  CountOfUiTasks:
+    Description: The number of tasks to be instantiated for the UI service.
+    Type: Number
+    Default: 1
+  CountOfAppserverTasks:
+    Description: The number of tasks to be instantiated for the Application service.
+    Type: Number
+    Default: 1
+  LaunchType:
+    Description: Please provide the LaunchType
+    Type: String
+    Default: FARGATE
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: 'Enter your VPC ID' 
+  PublicSubnetId1:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: 'Enter your existing subnet ID 1'
+
+  PublicSubnetId2:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: 'Enter your existing subnet ID 2'  
+  PrivateSubnetId1:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: 'Enter your existing subnet ID 1'
+
+  PrivateSubnetId2:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: 'Enter your existing subnet ID 2'  
+  DBSubnetGroupName:
+    Description: 'A DB subnet group to associate with the DB instance.'
+    Type: String
+  MinContainers:
+    Type: Number
+    Default: 1
+  # for autoscaling
+  MaxContainers:
+    Type: Number
+    Default: 3
+  # target CPU utilization (%)
+  AutoScalingTargetValue:
+    Type: Number
+    Default: 70  
+  MasterUserPassword:
+    Description: Please provide the LaunchType
+    Type: String
+    NoEcho: true
+    Default: password  
+Resources:
+  SSMParameterForRDSPWD:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Name: !Sub ${AWS::StackName}-RDS_PWD
+      Type: StringList 
+      Value: !Ref MasterUserPassword
+  AppUItaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: app-ui-taskdefinition
+      ContainerDefinitions:
+        - Name: ui
+          Essential: true
+          Image: public.ecr.aws/aws-containers/retail-store-sample-ui:0.5.0
+          LinuxParameters:
+            InitProcessEnabled: true
+          PortMappings:
+            - ContainerPort: 8080
+              AppProtocol: http
+              Name: ui
+          Environment:
+            - Name: JAVA_OPTS
+              Value: -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom
+            - Name: SERVER_TOMCAT_ACCESSLOG_ENABLED
+              Value: "true"
+            - Name: ENDPOINTS_CATALOG
+              Value: "http://catalog:8080"
+            - Name: ENDPOINTS_CARTS
+              Value: "http://carts:8080"
+            - Name: ENDPOINTS_ORDERS
+              Value: "http://orders:8080"
+            - Name: ENDPOINTS_CHECKOUT
+              Value: "http://checkout:8080"
+            - Name: ENDPOINTS_ASSETS
+              Value: "http://assets:8080"     
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "ui"
+  AppCatalogTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: appcatalog-taskdefinition
+      ContainerDefinitions:
+        - Name: catalog
+          Essential: true
+          Image: public.ecr.aws/aws-containers/retail-store-sample-catalog:0.5.0
+          LinuxParameters:
+            InitProcessEnabled: true
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Ref SSMParameterForRDSPWD    
+          Environment:
+            - Name: GIN_MOD
+              Value: "release"
+            - Name: DB_ENDPOINT
+              Value: !Sub "${Database.Endpoint.Address}:3306"
+            - Name: DB_READ_ENDPOINT
+              Value: !Sub "${Database.Endpoint.Address}:3306"
+            - Name: DB_NAME
+              Value: "catalog"
+            - Name: DB_USER
+              Value: "username"    
+
+          PortMappings:
+            - ContainerPort: 8080
+              AppProtocol: http
+              Name: catalog
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "catalog"
+
+  AppCartsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: appcarts-taskdefinition
+      ContainerDefinitions:
+        - Name: carts
+          Essential: true
+          Image: public.ecr.aws/aws-containers/retail-store-sample-cart:0.5.0
+          LinuxParameters:
+            InitProcessEnabled: true
+          Environment:
+            - Name: JAVA_OPTS
+              Value: "-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom"
+            - Name: SERVER_TOMCAT_ACCESSLOG_ENABLED
+              Value: "true"
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: "dynamodb"
+            - Name: CARTS_DYNAMODB_ENDPOINT
+              Value: "http://carts-db:8000"
+            - Name: CARTS_DYNAMODB_CREATETABLE
+              Value: "true"
+            - Name: AWS_ACCESS_KEY_ID
+              Value: "AKIAWRBMRZJWOETKMYPI"
+            - Name: AWS_SECRET_ACCESS_KEY
+              Value: "HHaW4jq3EV7QhlZ1IBpN9cJV1J+Qql7WY6oAIJOT"
+            - Name: CARTS_DYNAMODB_TABLENAME
+              Value: "sample"  
+          PortMappings:
+            - ContainerPort: 8080
+              AppProtocol: http
+              Name: carts
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "catalog"  
+  DBCartsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: appcartsDB-taskdefinition
+      ContainerDefinitions:
+        - Name: carts-db
+          Essential: true
+          Image: amazon/dynamodb-local:1.13.1
+          LinuxParameters:
+            InitProcessEnabled: true
+          PortMappings:
+            - ContainerPort: 8000
+              AppProtocol: http
+              Name: carts-db
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "DynamoDB-Carts"       
+  AppOrdersTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: apporders-taskdefinition
+      ContainerDefinitions:
+        - Name: orders
+          Essential: true
+          Image: public.ecr.aws/aws-containers/retail-store-sample-orders:0.5.0
+          LinuxParameters:
+            InitProcessEnabled: true
+          Secrets:
+            - Name: SPRING_DATASOURCE_WRITER_PASSWORD
+              ValueFrom: !Ref SSMParameterForRDSPWD  
+            - Name: SPRING_DATASOURCE_READER_PASSWORD
+              ValueFrom: !Ref SSMParameterForRDSPWD    
+          Environment:
+            - Name: JAVA_OPTS
+              Value: "-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom"
+            - Name: SERVER_TOMCAT_ACCESSLOG_ENABLED
+              Value: "true"
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: "mysql,rabbitmq"
+            - Name: SPRING_DATASOURCE_WRITER_URL
+              Value: !Sub "jdbc:mariadb://${Database.Endpoint.Address}:3306/orders"
+            - Name: SPRING_DATASOURCE_WRITER_USERNAME
+              Value: "username"
+            - Name: SPRING_DATASOURCE_READER_URL
+              Value: !Sub "jdbc:mariadb://${Database.Endpoint.Address}:3306/orders"
+            - Name: SPRING_DATASOURCE_READER_USERNAME
+              Value: "username"
+            - Name: SPRING_RABBITMQ_HOST
+              Value: "rabbitmq"  
+          PortMappings:
+            - ContainerPort: 8080
+              AppProtocol: http
+              Name: orders
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "orders"   
+  AppCheckoutTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: appcheckout-taskdefinition
+      ContainerDefinitions:
+        - Name: checkout
+          Essential: true
+          Image: public.ecr.aws/aws-containers/retail-store-sample-checkout:0.5.0
+          LinuxParameters:
+            InitProcessEnabled: true
+          Environment:
+            - Name: REDIS_URL
+              Value: "redis://checkout-redis:6379"
+            - Name: ENDPOINTS_ORDERS
+              Value: "http://orders:8080"
+          PortMappings:
+            - ContainerPort: 8080
+              AppProtocol: http
+              Name: checkout
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "checkout"                                                         
+  CheckoutRedisTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: redis-taskdefinition
+      ContainerDefinitions:
+        - Name: checkout-redis
+          Essential: true
+          Image: redis:6-alpine
+          LinuxParameters:
+            InitProcessEnabled: true
+          PortMappings:
+            - ContainerPort: 6379
+              Name: checkout-redis
+              Protocol: tcp
+          LogConfiguration: 
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "redis-server"
+  AssetsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: assets-taskdefinition
+      ContainerDefinitions:
+        - Name: assets
+          Essential: true
+          Image: public.ecr.aws/aws-containers/retail-store-sample-assets:0.5.0
+          LinuxParameters:
+            InitProcessEnabled: true
+          PortMappings:
+            - ContainerPort: 8080
+              Name: assets
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "assets"
+  RabbitTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
+      TaskRoleArn: !Ref 'ECSTaskExecutionRole'
+      Family: rabbit-taskdefinition
+      ContainerDefinitions:
+        - Name: rabbitmq
+          Essential: true
+          Image: rabbitmq:3-management
+          LinuxParameters:
+            InitProcessEnabled: true
+          PortMappings:
+            - ContainerPort: 5672
+              Name: rabbitmq
+              Protocol: tcp
+            - ContainerPort: 15672
+              Name: assets-ui
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: sample-ecs-app
+              awslogs-create-group: true
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: "rabbit"            
+  CloudMapNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
+    Properties: 
+      Description: Namespace for the sample application.
+      Name: !Sub '${EnvironmentName}.local'
+  AppCluster:
+    Type: AWS::ECS::Cluster
+    Properties: 
+      ClusterName: !Sub ${AWS::StackName}-Cluster
+      ServiceConnectDefaults: 
+        Namespace: !GetAtt CloudMapNamespace.Arn
+      CapacityProviders:
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs-tasks.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: TaskExecutionRolePolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:PutLogEvents'
+                  - 'elasticloadbalancing:DeregisterInstancesFromLoadBalancer'
+                  - 'elasticloadbalancing:Describe*'
+                  - 'elasticloadbalancing:RegisterInstancesWithLoadBalancer'
+                  - 'elasticloadbalancing:DeregisterTargets'
+                  - 'elasticloadbalancing:DescribeTargetGroups'
+                  - 'elasticloadbalancing:DescribeTargetHealth'
+                  - 'elasticloadbalancing:RegisterTargets' 
+                  - 'ecs:*'
+                  - 'ssm:*'
+                Resource: '*'
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: application load balancer security group
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          IpProtocol: tcp
+          ToPort: 80
+          FromPort: 80
+      SecurityGroupEgress:
+        - CidrIp: '0.0.0.0/0'
+          IpProtocol: -1    
+      VpcId: !Ref 'VpcId'
+  UISecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ui security group
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref ALBSecurityGroup
+          IpProtocol: tcp
+          ToPort: 8080
+          FromPort: 8080
+      SecurityGroupEgress:
+        - FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+          CidrIp: '0.0.0.0/0'
+        - FromPort: 8080
+          IpProtocol: tcp
+          ToPort: 8080
+          CidrIp: '0.0.0.0/0'  
+      VpcId: !Ref 'VpcId'
+  ALBSecurityGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties: 
+      DestinationSecurityGroupId: !Ref UISecurityGroup
+      IpProtocol: tcp
+      ToPort: 80
+      FromPort: 80
+      GroupId: !Ref ALBSecurityGroup
+  AppServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: appserver security group
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          IpProtocol: tcp
+          ToPort: 8080
+          FromPort: 8080
+      SecurityGroupEgress:
+        - CidrIp: '0.0.0.0/0'
+          IpProtocol: -1  
+      VpcId: !Ref 'VpcId' 
+  AppServerSecurityGroupRedisEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties: 
+      DestinationSecurityGroupId: !Ref RedisServerSecurityGroup
+      IpProtocol: tcp
+      ToPort: 6379
+      FromPort: 6379
+      GroupId: !Ref AppServerSecurityGroup
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: db security group
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref AppServerSecurityGroup
+          IpProtocol: tcp
+          ToPort: 3306
+          FromPort: 3306
+        - CidrIp: '10.0.0.0/16'
+          IpProtocol: tcp
+          ToPort: 3306
+          FromPort: 3306
+      SecurityGroupEgress:
+        - CidrIp: '0.0.0.0/0'
+          IpProtocol: -1
+      VpcId: !Ref 'VpcId'
+  RedisServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: redis-server security group
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref AppServerSecurityGroup
+          IpProtocol: tcp
+          ToPort: 6379
+          FromPort: 6379
+        - SourceSecurityGroupId: !Ref AppServerSecurityGroup
+          IpProtocol: tcp
+          ToPort: 5672
+          FromPort: 5672
+        - SourceSecurityGroupId: !Ref AppServerSecurityGroup
+          IpProtocol: tcp
+          ToPort: 15672
+          FromPort: 15672
+      SecurityGroupEgress:
+        - CidrIp: '0.0.0.0/0'
+          IpProtocol: -1
+      VpcId: !Ref 'VpcId'
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets: [ !Ref 'PublicSubnetId1'  ,  !Ref 'PublicSubnetId2' ]
+      SecurityGroups: [ !Ref ALBSecurityGroup ]
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref UITargetGroup
+  UITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 9
+      HealthCheckPath: /actuator/health
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 8
+      UnhealthyThresholdCount: 5
+      HealthyThresholdCount: 2
+      TargetType: ip 
+      VpcId: !Ref 'VpcId'
+      Port: 8080
+      Protocol: HTTP
+  CartsDBService: 
+    Type: AWS::ECS::Service
+    Properties: 
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'DBCartsTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'DBSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true
+        Services: 
+          - PortName: carts-db
+            DiscoveryName: carts-db
+            ClientAliases:
+              - DnsName: carts-db
+                Port: 8000
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "carts-db-serviceconnect"                   
+  RedisService: 
+    Type: AWS::ECS::Service
+    Properties: 
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'CheckoutRedisTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'RedisServerSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true 
+        Services: 
+          - PortName: checkout-redis
+            DiscoveryName: checkout-redis
+            ClientAliases:
+              - DnsName: checkout-redis
+                Port: 6379
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "redis-serviceconnect"
+
+  RabbitmqService: 
+    Type: AWS::ECS::Service
+    Properties: 
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'RabbitTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'RedisServerSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true 
+        Services: 
+          - PortName: rabbitmq
+            DiscoveryName: rabbitmq
+            ClientAliases:
+              - DnsName: rabbitmq
+                Port: 5672
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "rabbit-serviceconnect"          
+  CartAppService: 
+    Type: AWS::ECS::Service
+    DependsOn: ['RedisService','CartsDBService']
+    Properties:
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'AppCartsTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'AppServerSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true
+        Services: 
+          - PortName: carts
+            DiscoveryName: carts
+            ClientAliases:
+              - DnsName: carts
+                Port: 8080
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "app-serviceconnect"
+  CatalogAppService: 
+    Type: AWS::ECS::Service
+    DependsOn: ['RedisService','CartsDBService']
+    Properties:
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'AppCatalogTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'AppServerSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true
+        Services: 
+          - PortName: catalog
+            DiscoveryName: catalog
+            ClientAliases:
+              - DnsName: catalog
+                Port: 8080
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "app-serviceconnect" 
+  OrdersAppService: 
+    Type: AWS::ECS::Service
+    DependsOn: ['RedisService','CartsDBService','Database']
+    Properties:
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'AppOrdersTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'AppServerSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true
+        Services: 
+          - PortName: orders
+            DiscoveryName: orders
+            ClientAliases:
+              - DnsName: orders
+                Port: 8080
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "app-serviceconnect" 
+  AssetsAppService: 
+    Type: AWS::ECS::Service
+    DependsOn: ['RedisService','CartsDBService']
+    Properties:
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'AssetsTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'AppServerSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true
+        Services: 
+          - PortName: assets
+            DiscoveryName: assets
+            ClientAliases:
+              - DnsName: assets
+                Port: 8080
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "app-serviceconnect"  
+
+  CheckoutAppService: 
+    Type: AWS::ECS::Service
+    DependsOn: ['RedisService','CartsDBService']
+    Properties:
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'AppCheckoutTaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'AppServerSecurityGroup' ]
+      ServiceConnectConfiguration:
+        Enabled: true
+        Services: 
+          - PortName: checkout
+            DiscoveryName: checkout
+            ClientAliases:
+              - DnsName: checkout
+                Port: 8080
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "app-serviceconnect"                                    
+  UIService:
+    Type: AWS::ECS::Service
+    DependsOn: ['LoadBalancerListener','CheckoutAppService']
+    Properties:
+      LaunchType: !Ref LaunchType
+      Cluster: !Ref AppCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref 'AppUItaskDefinition'
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          
+          Subnets: [ !Ref 'PrivateSubnetId1'  ,  !Ref 'PrivateSubnetId2' ]
+          SecurityGroups: [!Ref 'UISecurityGroup' ]
+      LoadBalancers:
+        - TargetGroupArn: !Ref UITargetGroup
+          ContainerPort: 8080
+          ContainerName: 'ui'
+      ServiceConnectConfiguration:
+        Enabled: true 
+        Services: 
+          - PortName: ui
+            DiscoveryName: ui
+            ClientAliases:
+              - DnsName: ui
+                Port: 8080
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-create-group: true
+            awslogs-group: sample-ecs-app
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: "ui-serviceconnect" 
+
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-FargateAutoscalingRole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole'
+  AutoScalingTargetOrders:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinContainers
+      MaxCapacity: !Ref MaxContainers
+      ResourceId: !Join ['/', [service, !Ref AppCluster, !GetAtt OrdersAppService.Name]]
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt AutoScalingRole.Arn
+  AutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Join ['', [!Ref OrdersAppService, AutoScalingPolicy]]
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTargetOrders
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 10
+        ScaleOutCooldown: 10
+        # Keep things at or lower than 70% CPU utilization, for example
+        TargetValue: !Ref AutoScalingTargetValue 
+  AutoScalingTargetUI:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinContainers
+      MaxCapacity: !Ref MaxContainers
+      ResourceId: !Join ['/', [service, !Ref AppCluster, !GetAtt UIService.Name]]
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt AutoScalingRole.Arn 
+    
+  AutoScalingPolicyUI:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Join ['', [!Ref UIService, AutoScalingPolicy]]
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTargetUI
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 10
+        ScaleOutCooldown: 10
+        # Keep things at or lower than 70% CPU utilization, for example
+        TargetValue: !Ref AutoScalingTargetValue 
+  AutoScalingTargetCatalog:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinContainers
+      MaxCapacity: !Ref MaxContainers
+      ResourceId: !Join ['/', [service, !Ref AppCluster, !GetAtt CatalogAppService.Name]]
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt AutoScalingRole.Arn 
+    
+  AutoScalingPolicyCatalog:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Join ['', [!Ref CatalogAppService, AutoScalingPolicy]]
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTargetCatalog
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 10
+        ScaleOutCooldown: 10
+        # Keep things at or lower than 70% CPU utilization, for example
+        TargetValue: !Ref AutoScalingTargetValue       
+     
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 5
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 0
+      DBInstanceClass: db.t2.micro
+      DBName: !Ref EnvironmentName
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroupName
+      Engine: mariadb
+      EngineVersion: 10.6.14
+      MasterUsername: username
+      MasterUserPassword: password  
+
+  Ec2InstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ['ec2.amazonaws.com']
+            Action: ['sts:AssumeRole']
+      Policies:
+        - PolicyName: S3ReadOnlyPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                  - 's3:GetObject'
+                Resource: '*'
+        - PolicyName: RDSFullAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'rds:*'
+                Resource: '*'
+      
+  Ec2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      InstanceProfileName: !Ref Ec2InstanceProfileName
+      Roles:
+        - !Ref Ec2InstanceRole              
+  SonarQubeInstance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: Database
+    Properties:
+      ImageId: ami-0fc5d935ebf8bc3bc  # Amazon Linux 2 AMI ID
+      InstanceType: t2.medium
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref Ec2InstanceProfile
+      SecurityGroupIds: 
+        - !Ref SonarQubeSecurityGroup
+      SubnetId: !Ref PublicSubnetId1  # Replace with the ID of your subnet in the existing VPC
+      UserData:
+        "Fn::Base64":
+          !Sub |
+              #!/bin/bash -xe
+              exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+              # Get the latest CloudFormation package
+              apt-get update -y
+              apt-get install docker-compose -y
+              apt-get install mysql-client -y
+              apt-get install awscli -y
+              RDS=$(aws rds describe-db-instances --query "DBInstances[0].Endpoint.Address" --output json --region us-east-1 | sed 's/"//g')
+              mysql -h $RDS -u username -ppassword -e "create database orders2"
+              mysql -h $RDS -u username -ppassword -e "create database catalog2"
+              mysql -h $RDS -u username -ppassword -e "create database sampledb2"
+              aws s3 cp s3://nag-dev-s3 . --recursive
+              echo "vm.max_map_count=262144" >> /etc/sysctl.conf
+              sysctl -p
+              docker-compose up -d
+
+  SonarQubeSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security group for SonarQube
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 9000
+          ToPort: 9000
+          IpProtocol: tcp
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+        - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp  
+  SonarEIP:
+    Type: 'AWS::EC2::EIP'
+
+  MyEIPAssociation:
+    Type: 'AWS::EC2::EIPAssociation'
+    Properties:
+      AllocationId: !GetAtt SonarEIP.AllocationId
+      InstanceId: !Ref SonarQubeInstance             
+Outputs:
+  LoadBalancerUrl:
+    Description: The DNS name for the ALB
+    Value: !GetAtt LoadBalancer.DNSName
+  EcsServiceArn:
+    Description: A reference to the created ECS service ARN
+    Value: !Ref OrdersAppService
+  EcsServiceArnUI:
+    Description: A reference to the created ECS service ARN
+    Value: !Ref UIService  
+
+  EcsClusterName:
+    Description: A reference to the created ECS service ARN
+    Value: !Ref AppCluster  
+  SonarQubePublicIP:
+    Description: Public IP address of the SonarQube instance
+    Value: !GetAtt SonarQubeInstance.PublicIp
+  SonarQubePublicDNS:
+    Description: Public DNS name of the SonarQube instance
+    Value: !GetAtt SonarQubeInstance.PublicDnsName
+    
