@@ -2,10 +2,6 @@
 set -ex
 
 ENV_NAME_ARG=$1
-GITHUB_USERNAME=$2
-GITHUB_REPO=$3
-GITHUB_BRANCH=$4
-GITHUB_TOKEN=$5
 
 ###############################################################################
 # Create an S3 stack which holds our CloudFormation templates and an ECR stack
