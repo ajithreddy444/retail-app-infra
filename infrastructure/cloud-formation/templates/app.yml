@@ -1029,8 +1029,7 @@ Resources:
               mysql -h $RDS -u username -ppassword -e "create database orders"
               mysql -h $RDS -u username -ppassword -e "create database catalog"
               mysql -h $RDS -u username -ppassword -e "create database sampledb"
-              S3_BUCKET_NAME=${LambdaPackageLoc}
-              aws s3 cp s3://${S3_BUCKET_NAME} . --recursive
+              aws s3 cp s3://${LambdaPackageLoc} . --recursive
               echo "vm.max_map_count=262144" >> /etc/sysctl.conf
               sysctl -p
               docker-compose up -d
