@@ -87,8 +87,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: app-ui-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: ui
           Essential: true
@@ -132,8 +130,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcatalog-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: catalog
           Essential: true
@@ -178,8 +174,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcarts-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: carts
           Essential: true
@@ -225,8 +219,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcartsDB-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: carts-db
           Essential: true
@@ -255,8 +247,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: apporders-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: orders
           Essential: true
@@ -307,8 +297,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcheckout-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: checkout
           Essential: true
@@ -342,8 +330,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: redis-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: checkout-redis
           Essential: true
@@ -372,8 +358,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: assets-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: assets
           Essential: true
@@ -402,8 +386,6 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: rabbit-taskdefinition
-      PlacementConstraints:
-        - Type: "distinctInstance"
       ContainerDefinitions:
         - Name: rabbitmq
           Essential: true
