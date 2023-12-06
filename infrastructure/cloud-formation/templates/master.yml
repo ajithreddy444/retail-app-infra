@@ -55,7 +55,7 @@ Resources:
             Parameters:
                 EnvironmentName: !Ref AWS::StackName
                 ClusterName: !GetAtt EcsCluster.Outputs.EcsClusterName
-                LambdaPackageLoc: !Sub "${bucketname}"
+                LambdaPackageLoc: !Sub "${LambdaPackageLoc}"
                 ServiceArn: !GetAtt EcsCluster.Outputs.EcsServiceArn
                 ServiceArnUI: !GetAtt EcsCluster.Outputs.EcsServiceArnUI
                 SonarQubeURLName: 

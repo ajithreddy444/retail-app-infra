@@ -10,7 +10,7 @@ Parameters:
   Ec2InstanceProfileName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: String
-    Default: SonarInstanceProfile
+    Default: SonarInstanceProfiletest
   HostedZoneName:
     Type: String
     Description: The domain name for the hosted zone, e.g., example.com
@@ -972,7 +972,7 @@ Resources:
     Type: 'AWS::EC2::Instance'
     DependsOn: Database
     Properties:
-      ImageId: ami-0fc5d935ebf8bc3bc  # Amazon Linux 2 AMI ID
+      ImageId: ami-0cbd40f694b804622  # Amazon Linux 2 AMI ID
       InstanceType: t2.medium
       KeyName: !Ref KeyName
       IamInstanceProfile: !Ref Ec2InstanceProfile
