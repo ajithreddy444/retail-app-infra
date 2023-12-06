@@ -46,6 +46,7 @@ Resources:
                 EnvironmentName: !Ref AWS::StackName
                 VpcId: !GetAtt VPC.Outputs.VPC
                 DBSubnetGroupName: !GetAtt VPC.Outputs.DBSubnetGroup
+                LambdaPackageLoc: !Sub "${LambdaPackageLoc}"
   
 
     DeploymentPipeline:
