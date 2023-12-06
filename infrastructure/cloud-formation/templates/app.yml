@@ -3,6 +3,8 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: >-
   AWS CloudFormation for deploying a sample application in ECS Fargate and enabling service to service communication using ECS Service connect.
 Parameters:
+  LambdaPackageLoc: 
+    Description: s3 bucked used to download source code to ec2
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: 'AWS::EC2::KeyPair::KeyName'
@@ -527,6 +529,10 @@ Resources:
           IpProtocol: tcp
           ToPort: 3306
           FromPort: 3306
+        - CidrIp: '10.0.0.0/16'
+          IpProtocol: tcp
+          ToPort: 8000
+          FromPort: 8000  
       SecurityGroupEgress:
         - CidrIp: '0.0.0.0/0'
           IpProtocol: -1
@@ -989,11 +995,14 @@ Resources:
               apt-get install docker-compose -y
               apt-get install mysql-client -y
               apt-get install awscli -y
-              RDS=$(aws rds describe-db-instances --query "DBInstances[0].Endpoint.Address" --output json --region us-east-1 | sed 's/"//g')
-              mysql -h $RDS -u username -ppassword -e "create database orders2"
-              mysql -h $RDS -u username -ppassword -e "create database catalog2"
-              mysql -h $RDS -u username -ppassword -e "create database sampledb2"
-              aws s3 cp s3://nag-dev-s3 . --recursive
+              apt-get install jq -y
+              REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)
+              RDS=$(aws rds describe-db-instances --query "DBInstances[0].Endpoint.Address" --output json --region $REGION | sed 's/"//g')
+              mysql -h $RDS -u username -ppassword -e "create database orders"
+              mysql -h $RDS -u username -ppassword -e "create database catalog"
+              mysql -h $RDS -u username -ppassword -e "create database sampledb"
+              S3_BUCKET_NAME=${LambdaPackageLoc}
+              aws s3 cp s3://${S3_BUCKET_NAME} . --recursive
               echo "vm.max_map_count=262144" >> /etc/sysctl.conf
               sysctl -p
               docker-compose up -d
