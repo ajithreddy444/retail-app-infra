@@ -17,7 +17,7 @@
     RepositoryName:
       Description: CodeComit repository name
       Type: String 
-      Default: ordersnew
+      Default: orders
     RepositoryNameUI:
       Description: CodeComit repository name
       Type: String 
@@ -25,7 +25,7 @@
     ECRRepository:
       Description: ECR repository name
       Type: String 
-      Default: ordersnew
+      Default: orders
     ECRRepositoryUI:
       Description: ECR repository name
       Type: String 
@@ -62,7 +62,6 @@
     LambdaPackageLoc:
       Description: S3 loc of lambda package
       Type: String
-      Default: nag-dev-s3
     LambdaPackageS3Key:
       Description: S3 Key for Lambda package object
       Type: String
@@ -379,7 +378,7 @@
     LambdaFunSecurityHubImport:
       Type: 'AWS::Lambda::Function'
       Properties:
-          FunctionName: !Sub ImportVulToSecurityHub
+          FunctionName: ImportVulToSecurityHub
           Handler: !Ref LambdaHandlerName
           Role: !GetAtt LambdaExecutionRole.Arn
           Runtime: python3.8

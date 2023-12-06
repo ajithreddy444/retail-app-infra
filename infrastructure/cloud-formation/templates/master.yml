@@ -16,6 +16,10 @@ Parameters:
         Description: >
             An S3 key prefix which will be used to resolve referenced templates
         Type: String
+    LambdaPackageLoc:
+        Description: >
+            An S3 Bucket to fetch lambda packages from
+        Type: String
 Resources:
   
     VPC:
@@ -42,6 +46,7 @@ Resources:
                 EnvironmentName: !Ref AWS::StackName
                 VpcId: !GetAtt VPC.Outputs.VPC
                 DBSubnetGroupName: !GetAtt VPC.Outputs.DBSubnetGroup
+                LambdaPackageLoc: !Sub "${LambdaPackageLoc}"
   
 
     DeploymentPipeline:
@@ -51,6 +56,7 @@ Resources:
             Parameters:
                 EnvironmentName: !Ref AWS::StackName
                 ClusterName: !GetAtt EcsCluster.Outputs.EcsClusterName
+                LambdaPackageLoc: !Sub "${LambdaPackageLoc}"
                 ServiceArn: !GetAtt EcsCluster.Outputs.EcsServiceArn
                 ServiceArnUI: !GetAtt EcsCluster.Outputs.EcsServiceArnUI
                 SonarQubeURLName: 

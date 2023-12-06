@@ -4,44 +4,22 @@ set -ex
 ENV_NAME_ARG=$1
 
 MAIN_STACK_NAME=${ENV_NAME_ARG}
-ECR_STACK_NAME=${ENV_NAME_ARG}-ecr
-TEMPLATE_STORAGE_STACK_NAME=${ENV_NAME_ARG}-template-storage
+AWS_REGION=$2
 
+# List all repositories
+aws ecr describe-repositories --region $AWS_REGION --output json | \
+  jq -r '.repositories[] | .repositoryName' | \
+  xargs -I {} aws ecr delete-repository --repository-name {} --region $AWS_REGION --force
 
-###############################################################################
-# Delete the S3 bucket used to store Cloud Formation templates. Cloud Formation
-# won't delete a stack which provisioned an S3 bucket which is non-empty - so
-# this must happen first.
-#
+for bucket in $(aws s3api list-buckets --region $AWS_REGION --query 'Buckets[*].Name' --output json | jq -r '.[]'); do
+  echo "Emptying and deleting S3 bucket: $bucket"
+  
+  # Empty the S3 bucket
+  aws s3 rm s3://$bucket --recursive --region $AWS_REGION
 
-if aws s3 ls s3://${ENV_NAME_ARG}; then
-    aws s3 rb s3://${ENV_NAME_ARG} --force || true
-fi
-
-
-###############################################################################
-# Delete the ECR which holds our application's images. This must happen before
-# the stack which provisoined the ECR is deleted.
-#
-
-if aws ecr describe-repositories --repository-names ${ENV_NAME_ARG}; then
-    aws ecr delete-repository --repository-name ${ENV_NAME_ARG} --force || true
-fi
-
-
-###############################################################################
-# Delete all the stacks we've created.
-#
-
-if aws cloudformation describe-stacks --stack-name ${ECR_STACK_NAME}; then
-    aws cloudformation delete-stack --stack-name ${ECR_STACK_NAME} || true
-    aws cloudformation wait stack-delete-complete --stack-name ${ECR_STACK_NAME}
-fi
-
-if aws cloudformation describe-stacks --stack-name ${TEMPLATE_STORAGE_STACK_NAME}; then
-    aws cloudformation delete-stack --stack-name ${TEMPLATE_STORAGE_STACK_NAME} || true
-    aws cloudformation wait stack-delete-complete --stack-name ${TEMPLATE_STORAGE_STACK_NAME}
-fi
+  # Delete the empty S3 bucket
+  aws s3api delete-bucket --bucket $bucket --region $AWS_REGION
+done
 
 if aws cloudformation describe-stacks --stack-name ${MAIN_STACK_NAME}; then
     aws cloudformation delete-stack --stack-name ${MAIN_STACK_NAME} || true
