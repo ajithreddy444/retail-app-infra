@@ -69,7 +69,7 @@
     LambdaHandlerName:
       Description: Name of the lambda handler
       Type: String
-      Default: import_findings_security_hub.lambda_handler
+      Default: import_findings_security_hubtest.lambda_handler
     SASTTool:
       Description: Select the SAST tool from the list
       Type: String
@@ -378,7 +378,7 @@
     LambdaFunSecurityHubImport:
       Type: 'AWS::Lambda::Function'
       Properties:
-          FunctionName: !Sub ImportVulToSecurityHub
+          FunctionName: ImportVulToSecurityHubtest
           Handler: !Ref LambdaHandlerName
           Role: !GetAtt LambdaExecutionRole.Arn
           Runtime: python3.8
