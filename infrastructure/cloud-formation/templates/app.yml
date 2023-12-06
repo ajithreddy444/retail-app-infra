@@ -86,6 +86,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: app-ui-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: ui
           Essential: true
@@ -129,6 +132,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcatalog-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: catalog
           Essential: true
@@ -173,6 +179,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcarts-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: carts
           Essential: true
@@ -218,6 +227,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcartsDB-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: carts-db
           Essential: true
@@ -246,6 +258,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: apporders-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: orders
           Essential: true
@@ -296,6 +311,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: appcheckout-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: checkout
           Essential: true
@@ -329,6 +347,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: redis-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: checkout-redis
           Essential: true
@@ -357,6 +378,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: assets-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: assets
           Essential: true
@@ -385,6 +409,9 @@ Resources:
       ExecutionRoleArn: !Ref 'ECSTaskExecutionRole'
       TaskRoleArn: !Ref 'ECSTaskExecutionRole'
       Family: rabbit-taskdefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
       ContainerDefinitions:
         - Name: rabbitmq
           Essential: true
