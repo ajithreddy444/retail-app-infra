@@ -16,6 +16,14 @@ After successfully creating the Cloud Formation stack you'll have:
 - centralized logging with CloudWatch
 - lambda scripts to send SAST and DAST reports to AWS SecurityHub
 
+## Prerequisites
+
+1.	Git command line installed
+2.	Awscli installed
+3.	AWS account 
+4.	S3 bucket with put object ,list object access.
+5.	AWS cli configured by IAM user credentials with Administrator access
+
 
 ## Deploying to AWS + CI
 
@@ -41,7 +49,7 @@ an example invocation:
 
 Once your stack reaches the `CREATE_COMPLETE` state (it could take 30+ minutes),
 interrogate the stack outputs to obtain the web service URL and Code Pipeline
-URL. We'll use both of these values in later steps.
+URL.
 
 ```sh
 export APP_URL=$(aws cloudformation \
@@ -56,3 +64,10 @@ export CI_URL=$(aws cloudformation \
    --query 'Stacks[0].Outputs[?OutputKey==`PipelineUrl`].OutputValue' \
    --stack-name ${CF_DEMO_ENVIRONMENT} | jq '.[0]' | sed -e "s;\";;g")
 ```
+
+## How to Delete Stack
+
+```sh
+./infrastructure/cloud-formation/scripts/delete-stacks.sh ${CF_DEMO_ENVIRONMENT}
+```
+Note: you may have empty & delete s3 buckets ,ECR created from template before as CFN delete won't delete non-empty buckets and ecrs.
