@@ -969,6 +969,8 @@
               - Name: SonarQube_URL
                 Type: PARAMETER_STORE
                 Value: !Ref SSMParameterSonarQubeURL
+              - Name: s3
+                Value: !Ref LambdaPackageLoc  
           PrivilegedMode: true
         ServiceRole: !Ref 'StaticCodeAnalysisServiceRole'
         Source:
@@ -1002,6 +1004,8 @@
               - Name: SonarQube_URL
                 Type: PARAMETER_STORE
                 Value: !Ref SSMParameterSonarQubeURL
+              - Name: s3
+                Value: !Ref LambdaPackageLoc  
           PrivilegedMode: true
         ServiceRole: !Ref 'StaticCodeAnalysisServiceRole'
         Source:
@@ -1032,6 +1036,8 @@
                 Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
               - Name: ECR_REPO
                 Value: !Ref ECRRepository
+              - Name: s3
+                Value: !Ref LambdaPackageLoc
         Name: !Join ['-', [!Ref Stage, !Ref 'AWS::AccountId', 'BuildProject']]
         ServiceRole: !Ref StaticCodeAnalysisServiceRole
         Source:
@@ -1053,6 +1059,8 @@
                 Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
               - Name: ECR_REPO
                 Value: !Ref ECRRepositoryUI
+              - Name: s3
+                Value: !Ref LambdaPackageLoc  
         Name: !Join ['-', [!Ref Stage, !Ref 'AWS::AccountId', 'BuildProjectUI']]
         ServiceRole: !Ref StaticCodeAnalysisServiceRole
         Source:
@@ -1082,6 +1090,8 @@
               - Name: ApplicationURL
                 Type: PARAMETER_STORE
                 Value: !Ref SSMParameterAppURL
+              - Name: s3
+                Value: !Ref LambdaPackageLoc  
         ServiceRole: !Ref 'StaticCodeAnalysisServiceRole'
         Source:
           Type: CODEPIPELINE
